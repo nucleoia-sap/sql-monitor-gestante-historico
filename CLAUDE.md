@@ -159,13 +159,38 @@ CALL proced_1_gestacoes_historico(DATE('2024-10-31'));
 ### Business Logic
 
 #### Pregnancy Identification (Procedure 1)
-- **ICD Codes**: Z32.1 (confirmed pregnancy), Z34% (normal supervision), Z35% (high-risk)
-- **Grouping Window**: 60 days to merge multiple ACTIVE CIDs into single pregnancy
-- **Auto-close**: 299 days after start if no end date
-- **Phase Classification**:
-  - Gestação (Pregnancy): < 308 days without end date
-  - Puerpério (Postpartum): Within 45 days of end date
-  - Encerrada (Closed): > 45 days after end OR > 308 days without end
+
+**✅ CRITICAL UPDATE (2025-12-03)**: Pregnancy start date logic completely revised
+
+**ICD Codes**: Z32.1 (confirmed pregnancy), Z34% (normal supervision), Z35% (high-risk)
+
+**DUM (Data da Última Menstruação) Estimation - NEW LOGIC**:
+- **Method**: MODE (most frequent value) of `c.data_diagnostico` across all visits
+- **Rationale**:
+  - 1st visit: DUM imprecise (patient recall)
+  - Subsequent visits: DUM refined progressively
+  - After ultrasound: DUM becomes accurate and **repeats in all future visits**
+  - **Most frequent date** = best consolidated estimate (validated by ultrasound)
+- **Historical Context**: Does NOT filter by `situacao_cid = 'ATIVO'` because in historical snapshots, completed pregnancies will have `RESOLVIDO` status
+- **Implementation**:
+  ```sql
+  -- Count frequency of each data_evento per patient
+  -- Select date with HIGHEST frequency (MODE)
+  -- In case of tie, use most recent date
+  ```
+
+**Grouping Window**: 60 days to merge multiple pregnancies into single pregnancy record
+
+**Auto-close**: 299 days after start if no end date
+
+**Phase Classification**:
+  - Gestação (Pregnancy): data_inicio ≤ data_referencia AND (data_fim IS NULL OR data_fim ≥ data_referencia) AND ≤ 299 days
+  - Puerpério (Postpartum): data_fim < data_referencia ≤ (data_fim + 42 days)
+  - Encerrada (Closed): data_referencia > (data_fim + 42 days) OR > 299 days without end
+
+**Key Difference from Original**:
+- ❌ **OLD**: Used first ACTIVE CID date → incorrect for historical data
+- ✅ **NEW**: Uses MODE of all CID dates → clinically validated, works with historical snapshots
 
 #### Prenatal Visits (Procedure 2)
 - **Initial Weight**: Measured -180 to +84 days from pregnancy start
