@@ -2,7 +2,7 @@
 -- Problema identificado: filtro de 340 dias estava sendo aplicado sobre data_evento (CID)
 -- ao invés de sobre data_inicio (DUM calculada)
 
-DECLARE data_referencia DATE DEFAULT DATE('2025-07-01');
+DECLARE data_referencia DATE DEFAULT DATE('2024-08-01');
 
 WITH
 
@@ -160,6 +160,7 @@ WITH
         WHERE
             tipo_evento = 'gestacao'
             AND situacao_cid = 'RESOLVIDO'
+            AND data_evento <= data_referencia  -- ✅ CORREÇÃO: Filtro temporal
     ),
 
     -- ------------------------------------------------------------

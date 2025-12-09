@@ -17,8 +17,10 @@
 -- -- }}
 
 -- CREATE OR REPLACE TABLE `rj-sms-sandbox.sub_pav_us._gestacoes_historico` AS
-DECLARE data_referencia DATE DEFAULT DATE('2025-07-01');
+DECLARE data_referencia DATE DEFAULT DATE('2024-07-01');
 
+-- CREATE OR REPLACE TABLE `rj-sms-sandbox.sub_pav_us._gestacoes_historico` AS
+INSERT INTO `rj-sms-sandbox.sub_pav_us._gestacoes_historico` 
 
 WITH
 
@@ -73,7 +75,7 @@ WITH
         WHERE
             c.data_diagnostico IS NOT NULL
             AND c.data_diagnostico != ''
-            AND (c.situacao = 'ATIVO' OR c.situacao = 'RESOLVIDO')  -- ✅ CORREÇÃO: Apenas ATIVO para inícios
+            AND c.situacao = 'ATIVO'  -- ✅ CORREÇÃO: Apenas ATIVO para inícios
             AND (
                 c.id = 'Z321'
                 OR c.id LIKE 'Z34%'
@@ -254,11 +256,11 @@ WITH
     gestacoes_com_status AS (
         SELECT
             *,
-            -- data_fim_efetiva: usado para auto-encerramento após 299 dias
+            -- data_fim_efetiva: usado para auto-encerramento após 294 dias
             CASE
                 WHEN data_fim IS NOT NULL THEN data_fim
-                WHEN DATE_ADD(data_inicio, INTERVAL 299 DAY) <= data_referencia
-                THEN DATE_ADD(data_inicio, INTERVAL 299 DAY)
+                WHEN DATE_ADD(data_inicio, INTERVAL 294 DAY) <= data_referencia
+                THEN DATE_ADD(data_inicio, INTERVAL 294 DAY)
                 ELSE NULL
             END AS data_fim_efetiva,
             DATE_ADD(data_inicio, INTERVAL 40 WEEK) AS dpp
@@ -283,8 +285,8 @@ WITH
                 AND (
                     gcs.data_fim IS NULL OR gcs.data_fim >= data_referencia
                 )
-                -- Proteção: não pode exceder 299 dias
-                AND DATE_ADD(gcs.data_inicio, INTERVAL 299 DAY) >= data_referencia
+                -- Proteção: não pode exceder 294 dias (42 semanas)
+                AND DATE_ADD(gcs.data_inicio, INTERVAL 294 DAY) >= data_referencia
                 THEN 'Gestação'
 
                 -- Puerpério: até 42 dias após data_fim (INCLUSIVE)
@@ -298,9 +300,9 @@ WITH
                 AND DATE_ADD(gcs.data_fim, INTERVAL 42 DAY) < data_referencia
                 THEN 'Encerrada'
 
-                -- Gestação auto-encerrada (sem data_fim mas passou 299 dias)
+                -- Gestação auto-encerrada (sem data_fim mas passou 294 dias)
                 WHEN gcs.data_fim IS NULL
-                AND DATE_ADD(gcs.data_inicio, INTERVAL 299 DAY) < data_referencia
+                AND DATE_ADD(gcs.data_inicio, INTERVAL 294 DAY) < data_referencia
                 THEN 'Encerrada'
 
                 ELSE 'Status indefinido'
