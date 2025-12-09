@@ -1,21 +1,10 @@
--- Sintaxe para criar ou substituir uma consulta salva (procedimento)
-CREATE OR REPLACE PROCEDURE `rj-sms-sandbox.sub_pav_us.proced_2_atd_prenatal_aps`()
-
-BEGIN
-
-  -- A consulta que você quer salvar e reutilizar
+DECLARE data_referencia DATE DEFAULT DATE('2024-07-01');
 
 
--- {{
---     config(
---         enabled=true,
---         alias="atendimentos_prenatal_aps",
---     )
--- }}
+-- CREATE OR REPLACE TABLE `rj-sms-sandbox.sub_pav_us._atendimentos_prenatal_aps_historico` AS
+INSERT INTO `rj-sms-sandbox.sub_pav_us._atendimentos_prenatal_aps_historico`
 
-CREATE OR REPLACE TABLE `rj-sms-sandbox.sub_pav_us._atendimentos_prenatal_aps` AS
-
-WITH 
+WITH
 
 marcadores_temporais AS (
  SELECT
@@ -30,7 +19,8 @@ marcadores_temporais AS (
    data_fim_efetiva,
    fase_atual
 --  FROM {{ ref('mart_bi_gestacoes__gestacoes') }}
- FROM `rj-sms-sandbox.sub_pav_us._gestacoes`
+ FROM `rj-sms-sandbox.sub_pav_us._gestacoes_historico`
+ WHERE data_snapshot = data_referencia  -- NOVO: Filtrar pelo snapshot específico
 ),
 
 
@@ -73,7 +63,7 @@ alturas_filtradas AS (
    ea.paciente.id_paciente,
    ea.medidas.altura,
    DATE_DIFF(mt.data_inicio, ea.entrada_data, DAY) AS dias_antes_inicio,
-   DATE_DIFF(ea.entrada_data, COALESCE(mt.data_fim_efetiva, CURRENT_DATE()), DAY) AS dias_apos_inicio
+   DATE_DIFF(ea.entrada_data, COALESCE(mt.data_fim_efetiva, data_referencia), DAY) AS dias_apos_inicio  -- ALTERADO: era CURRENT_DATE()
 --  FROM {{ ref('mart_historico_clinico__episodio') }} ea
  FROM `rj-sms.saude_historico_clinico.episodio_assistencial` ea
  JOIN marcadores_temporais mt
@@ -201,7 +191,7 @@ atendimentos_gestacao AS (
  FROM atendimentos_filtrados af
  JOIN marcadores_temporais mt
    ON af.id_paciente = mt.id_paciente
-  AND af.entrada_data BETWEEN mt.data_inicio AND COALESCE(mt.data_fim_efetiva, CURRENT_DATE())
+  AND af.entrada_data BETWEEN mt.data_inicio AND COALESCE(mt.data_fim_efetiva, data_referencia)  -- ALTERADO: era CURRENT_DATE()
 ),
 
 
@@ -226,7 +216,7 @@ consultas_enriquecidas AS (
    ag.*,
    presc.prescricoes,
    ROW_NUMBER() OVER (PARTITION BY ag.id_gestacao ORDER BY ag.entrada_data) AS numero_consulta,
-  
+
    pai.peso AS peso_inicio,
    pai.altura_m,
    pai.imc_inicio,
@@ -244,7 +234,9 @@ consultas_enriquecidas AS (
 
 
 -- Resultado final
+-- Adiciona coluna data_snapshot para identificar o snapshot
 SELECT
+ data_referencia AS data_snapshot,  -- NOVO: identifica a data do snapshot
  id_gestacao,
  id_paciente,
  entrada_data AS data_consulta,
@@ -284,7 +276,3 @@ FROM consultas_enriquecidas
 where fase_atual = 'Gestação'
 ORDER BY
  data_consulta DESC;
-
-    
-
-END

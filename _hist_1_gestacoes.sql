@@ -17,8 +17,10 @@
 -- -- }}
 
 -- CREATE OR REPLACE TABLE `rj-sms-sandbox.sub_pav_us._gestacoes_historico` AS
-DECLARE data_referencia DATE DEFAULT DATE('2025-07-01');
+DECLARE data_referencia DATE DEFAULT DATE('2024-07-01');
 
+-- CREATE OR REPLACE TABLE `rj-sms-sandbox.sub_pav_us._gestacoes_historico` AS
+INSERT INTO `rj-sms-sandbox.sub_pav_us._gestacoes_historico` 
 
 WITH
 
@@ -86,179 +88,166 @@ WITH
     ),
 
     -- ------------------------------------------------------------
-    -- ✅ NOVA LÓGICA: Data de Início = MODA de data_diagnostico
+    -- Inícios de Gestação (apenas CIDs ATIVOS)
     -- ------------------------------------------------------------
-    -- A DUM (Data da Última Menstruação) é refinada ao longo dos atendimentos:
-    -- 1ª consulta: DUM imprecisa (relato da paciente)
-    -- Consultas seguintes: DUM vai sendo refinada
-    -- Após USG: DUM fica precisa e se repete em todos atendimentos
-    -- MODA (valor mais frequente) = melhor estimativa consolidada
-    -- ------------------------------------------------------------
-
-    -- Passo 1: Filtrar apenas eventos de gestação
-    eventos_gestacao AS (
+    inicios_brutos AS (
         SELECT *
         FROM eventos_brutos
         WHERE tipo_evento = 'gestacao'
     ),
 
-    -- Passo 2: Agrupar eventos em períodos de gestação (janela de 60 dias)
-    -- Se diferença entre eventos > 60 dias, considera nova gestação
-    eventos_com_periodo AS (
+    -- ------------------------------------------------------------
+    -- Inícios de Gestação com Grupo (janela de 60 dias)
+    -- ------------------------------------------------------------
+    inicios_com_grupo AS (
         SELECT
             *,
             LAG(data_evento) OVER (
                 PARTITION BY id_paciente
                 ORDER BY data_evento
-            ) AS data_evento_anterior,
+            ) AS data_anterior,
             CASE
                 WHEN LAG(data_evento) OVER (
                     PARTITION BY id_paciente
                     ORDER BY data_evento
                 ) IS NULL THEN 1
-                WHEN DATE_DIFF(
+                WHEN DATE_DIFF (
                     data_evento,
                     LAG(data_evento) OVER (
                         PARTITION BY id_paciente
                         ORDER BY data_evento
                     ),
                     DAY
-                ) > 60 THEN 1
+                ) >= 60 THEN 1
                 ELSE 0
-            END AS nova_gestacao_flag
-        FROM eventos_gestacao
+            END AS nova_ocorrencia_flag
+        FROM inicios_brutos
     ),
 
-    -- Passo 3: Criar ID de período de gestação
-    eventos_com_grupo_gestacao AS (
-        SELECT
-            *,
-            SUM(nova_gestacao_flag) OVER (
+    -- ------------------------------------------------------------
+    -- Grupos de Inícios de Gestação
+    -- ------------------------------------------------------------
+    grupos_inicios AS (
+        SELECT *, SUM(nova_ocorrencia_flag) OVER (
                 PARTITION BY id_paciente
                 ORDER BY data_evento
-                ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-            ) AS grupo_gestacao
-        FROM eventos_com_periodo
+            ) AS grupo_id
+        FROM inicios_com_grupo
     ),
 
-    -- Passo 4: Calcular frequência de cada data_evento DENTRO de cada grupo de gestação
-    frequencia_datas AS (
-        SELECT
-            id_paciente,
-            grupo_gestacao,
-            data_evento,
-            COUNT(*) AS frequencia,
-            -- Pega qualquer id_hci, cpf, nome (são iguais para mesma paciente)
-            ANY_VALUE(id_hci) AS id_hci,
-            ANY_VALUE(cpf) AS cpf,
-            ANY_VALUE(nome) AS nome,
-            ANY_VALUE(idade_gestante) AS idade_gestante
-        FROM eventos_com_grupo_gestacao
-        GROUP BY id_paciente, grupo_gestacao, data_evento
-    ),
-
-    -- Passo 5: Para cada grupo de gestação, pegar a data com MAIOR frequência (MODA)
-    moda_por_grupo_gestacao AS (
-        SELECT
-            id_paciente,
-            grupo_gestacao,
-            data_evento AS dum_estimada,  -- DUM = data mais frequente dentro do grupo
-            frequencia,
-            id_hci,
-            cpf,
-            nome,
-            idade_gestante,
-            ROW_NUMBER() OVER (
-                PARTITION BY id_paciente, grupo_gestacao
-                ORDER BY frequencia DESC, data_evento DESC  -- Em caso de empate, pega a mais recente
-            ) AS rn
-        FROM frequencia_datas
-    ),
-
-    -- Passo 6: Selecionar apenas a MODA de cada grupo (rn = 1)
-    inicios_por_moda AS (
-        SELECT
-            id_hci,
-            id_paciente,
-            cpf,
-            nome,
-            idade_gestante,
-            dum_estimada AS data_evento,
-            frequencia AS vezes_registrada
-        FROM moda_por_grupo_gestacao
+    -- ------------------------------------------------------------
+    -- Inícios de Gestação Deduplicados (DATA MAIS RECENTE)
+    -- ------------------------------------------------------------
+    -- ✅ CORREÇÃO: Usar DATA MAIS RECENTE do grupo (não MODA)
+    -- query_teste_gestacoes.sql usa esta abordagem
+    -- ------------------------------------------------------------
+    inicios_deduplicados AS (
+        SELECT *
+        FROM (
+                SELECT *, ROW_NUMBER() OVER (
+                        PARTITION BY id_paciente, grupo_id
+                        ORDER BY data_evento DESC  -- ✅ DATA MAIS RECENTE
+                    ) AS rn
+                FROM grupos_inicios
+            )
         WHERE rn = 1
     ),
 
     -- ------------------------------------------------------------
-    -- Finais de Gestação (CIDs RESOLVIDOS)
+    -- Eventos de DESFECHO da Gestação (CIDs O00-O99)
     -- ------------------------------------------------------------
-    -- ✅ CORREÇÃO: Buscar RESOLVIDO diretamente da fonte, não de eventos_brutos
-    -- eventos_brutos agora tem apenas ATIVO
+    -- ✅ CORREÇÃO: Usar CIDs de desfecho obstétrico (O00-O99) ao invés de Z3xx RESOLVIDO
+    -- CIDs O00-O99 = eventos obstétricos concretos (aborto, parto, puerpério)
+    -- CIDs Z3xx RESOLVIDO = marcação administrativa (menos precisa)
     -- ------------------------------------------------------------
-    finais AS (
+    eventos_desfecho AS (
         SELECT
             paciente.id_paciente AS id_paciente,
             SAFE.PARSE_DATE (
                 '%Y-%m-%d',
                 SUBSTR(c.data_diagnostico, 1, 10)
-            ) AS data_evento
+            ) AS data_desfecho,
+            c.id AS cid_desfecho,
+            CASE
+                WHEN c.id BETWEEN 'O00' AND 'O08' THEN 'aborto'
+                WHEN c.id BETWEEN 'O80' AND 'O84' THEN 'parto'
+                WHEN c.id BETWEEN 'O85' AND 'O92' THEN 'puerperio_confirmado'
+                ELSE 'outro_desfecho'
+            END AS tipo_desfecho
         FROM
             `rj-sms.saude_historico_clinico.episodio_assistencial`
             LEFT JOIN UNNEST (condicoes) c
         WHERE
             c.data_diagnostico IS NOT NULL
             AND c.data_diagnostico != ''
-            AND c.situacao = 'RESOLVIDO'
-            AND (
-                c.id = 'Z321'
-                OR c.id LIKE 'Z34%'
-                OR c.id LIKE 'Z35%'
-            )
             AND paciente.id_paciente IS NOT NULL
-            -- Filtro temporal: mesma janela que eventos_brutos
             AND SAFE.PARSE_DATE('%Y-%m-%d', SUBSTR(c.data_diagnostico, 1, 10)) <= data_referencia
-            AND SAFE.PARSE_DATE('%Y-%m-%d', SUBSTR(c.data_diagnostico, 1, 10)) >= DATE_SUB(data_referencia, INTERVAL 340 DAY)
+            AND SAFE.PARSE_DATE('%Y-%m-%d', SUBSTR(c.data_diagnostico, 1, 10)) >= DATE_SUB(data_referencia, INTERVAL 365 DAY)
+            AND (c.id BETWEEN 'O00' AND 'O99')
     ),
 
     -- ------------------------------------------------------------
-    -- Gestações Únicas
+    -- Primeiro desfecho por gestação
     -- ------------------------------------------------------------
-    -- ✅ SIMPLIFICAÇÃO: inicios_por_moda já tem gestações corretamente separadas
-    -- Agrupamento de 60 dias + MODA já foi aplicado nos passos 2-6
-    -- NÃO precisa agrupar novamente!
+    -- ✅ CORREÇÃO: Remover id_hci do GROUP BY para evitar duplicações
+    -- Múltiplos episódios assistenciais (id_hci) da mesma gestação
+    -- eram tratados como gestações separadas
+    -- Limitado a 320 dias entre início e desfecho (gestação máxima)
+    -- ------------------------------------------------------------
+    primeiro_desfecho AS (
+        SELECT
+            -- Seleciona apenas UM id_hci por gestação (primeiro cronologicamente)
+            ARRAY_AGG(i.id_hci ORDER BY i.data_evento LIMIT 1)[OFFSET(0)] AS id_hci,
+            i.id_paciente,
+            i.data_evento AS data_inicio,
+            MIN(d.data_desfecho) AS data_fim,
+            ARRAY_AGG(d.tipo_desfecho ORDER BY d.data_desfecho LIMIT 1)[OFFSET(0)] AS tipo_desfecho,
+            ARRAY_AGG(d.cid_desfecho ORDER BY d.data_desfecho LIMIT 1)[OFFSET(0)] AS cid_desfecho
+        FROM inicios_deduplicados i
+        LEFT JOIN eventos_desfecho d
+            ON i.id_paciente = d.id_paciente
+            AND d.data_desfecho > i.data_evento
+            AND DATE_DIFF(d.data_desfecho, i.data_evento, DAY) <= 320
+        WHERE i.data_evento <= data_referencia
+        GROUP BY i.id_paciente, i.data_evento  -- ✅ APENAS id_paciente e data_inicio
+    ),
+
+    -- ------------------------------------------------------------
+    -- Gestações Únicas com Desfecho Real
+    -- ------------------------------------------------------------
+    -- ✅ CORREÇÃO: Usar primeiro_desfecho que já removeu duplicações por id_hci
+    -- JOIN com inicios_deduplicados para recuperar informações completas
     -- ------------------------------------------------------------
     gestacoes_unicas AS (
         SELECT
-            i.id_hci,
-            i.id_paciente,
-            i.cpf,
-            i.nome,
-            i.idade_gestante,
-            i.data_evento AS data_inicio,  -- DUM estimada (MODA)
-            i.vezes_registrada,  -- Quantas vezes essa DUM foi registrada
-            -- Subconsulta para encontrar a data de fim mais próxima após o início
-            (
-                SELECT MIN(f.data_evento)
-                FROM finais f
-                WHERE
-                    f.id_paciente = i.id_paciente
-                    AND f.data_evento > i.data_evento
-            ) AS data_fim,
+            pd.id_hci,
+            pd.id_paciente,
+            id.cpf,
+            id.nome,
+            id.idade_gestante,
+            pd.data_inicio,
+            pd.data_fim,
+            pd.tipo_desfecho,
+            pd.cid_desfecho,
             ROW_NUMBER() OVER (
-                PARTITION BY i.id_paciente
-                ORDER BY i.data_evento
+                PARTITION BY pd.id_paciente
+                ORDER BY pd.data_inicio
             ) AS numero_gestacao,
             CONCAT(
-                i.id_paciente,
+                pd.id_paciente,
                 '-',
                 CAST(
                     ROW_NUMBER() OVER (
-                        PARTITION BY i.id_paciente
-                        ORDER BY i.data_evento
+                        PARTITION BY pd.id_paciente
+                        ORDER BY pd.data_inicio
                     ) AS STRING
                 )
             ) AS id_gestacao
-        FROM inicios_por_moda i
+        FROM primeiro_desfecho pd
+        INNER JOIN inicios_deduplicados id
+            ON pd.id_hci = id.id_hci
+            AND pd.id_paciente = id.id_paciente
+            AND pd.data_inicio = id.data_evento
     ),
 
     -- ------------------------------------------------------------
@@ -267,11 +256,11 @@ WITH
     gestacoes_com_status AS (
         SELECT
             *,
-            -- data_fim_efetiva: usado para auto-encerramento após 299 dias
+            -- data_fim_efetiva: usado para auto-encerramento após 294 dias
             CASE
                 WHEN data_fim IS NOT NULL THEN data_fim
-                WHEN DATE_ADD(data_inicio, INTERVAL 299 DAY) <= data_referencia
-                THEN DATE_ADD(data_inicio, INTERVAL 299 DAY)
+                WHEN DATE_ADD(data_inicio, INTERVAL 294 DAY) <= data_referencia
+                THEN DATE_ADD(data_inicio, INTERVAL 294 DAY)
                 ELSE NULL
             END AS data_fim_efetiva,
             DATE_ADD(data_inicio, INTERVAL 40 WEEK) AS dpp
@@ -296,8 +285,8 @@ WITH
                 AND (
                     gcs.data_fim IS NULL OR gcs.data_fim >= data_referencia
                 )
-                -- Proteção: não pode exceder 299 dias
-                AND DATE_ADD(gcs.data_inicio, INTERVAL 299 DAY) >= data_referencia
+                -- Proteção: não pode exceder 294 dias (42 semanas)
+                AND DATE_ADD(gcs.data_inicio, INTERVAL 294 DAY) >= data_referencia
                 THEN 'Gestação'
 
                 -- Puerpério: até 42 dias após data_fim (INCLUSIVE)
@@ -311,9 +300,9 @@ WITH
                 AND DATE_ADD(gcs.data_fim, INTERVAL 42 DAY) < data_referencia
                 THEN 'Encerrada'
 
-                -- Gestação auto-encerrada (sem data_fim mas passou 299 dias)
+                -- Gestação auto-encerrada (sem data_fim mas passou 294 dias)
                 WHEN gcs.data_fim IS NULL
-                AND DATE_ADD(gcs.data_inicio, INTERVAL 299 DAY) < data_referencia
+                AND DATE_ADD(gcs.data_inicio, INTERVAL 294 DAY) < data_referencia
                 THEN 'Encerrada'
 
                 ELSE 'Status indefinido'
@@ -405,12 +394,13 @@ SELECT
     filtrado.data_inicio,
     filtrado.data_fim,
     filtrado.data_fim_efetiva,
+    filtrado.tipo_desfecho,  -- ✅ NOVO: tipo de desfecho obstétrico
+    filtrado.cid_desfecho,   -- ✅ NOVO: CID do desfecho
     filtrado.dpp,
     filtrado.fase_atual,
     filtrado.trimestre_atual_gestacao,
     filtrado.ig_atual_semanas,
     filtrado.ig_final_semanas,
-    filtrado.vezes_registrada,  -- ✅ NOVO: quantas vezes a DUM foi registrada
     edf.equipe_nome,
     edf.clinica_nome
 FROM filtrado

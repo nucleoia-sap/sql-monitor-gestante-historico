@@ -1,0 +1,2204 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pré-Natal Analytics • SMS Rio</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        :root {
+            /* Color System */
+            --primary: #0369A1;
+            --primary-light: #0EA5E9;
+            --primary-dark: #075985;
+
+            --success: #059669;
+            --success-light: #10B981;
+            --warning: #D97706;
+            --warning-light: #F59E0B;
+            --danger: #DC2626;
+            --danger-light: #EF4444;
+
+            --neutral-50: #FAFAF9;
+            --neutral-100: #F5F5F4;
+            --neutral-200: #E7E5E4;
+            --neutral-300: #D6D3D1;
+            --neutral-400: #A8A29E;
+            --neutral-500: #78716C;
+            --neutral-600: #57534E;
+            --neutral-700: #44403C;
+            --neutral-800: #292524;
+            --neutral-900: #1C1917;
+
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+            --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--neutral-50);
+            color: var(--neutral-900);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        h1, h2, h3 {
+            font-family: 'Fraunces', Georgia, serif;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+
+        /* Layout Container */
+        .app-container {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            min-height: 100vh;
+            max-width: 2000px;
+            margin: 0 auto;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            background: linear-gradient(180deg, var(--primary-dark) 0%, var(--primary) 100%);
+            color: white;
+            padding: 2rem;
+            box-shadow: var(--shadow-xl);
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        .brand {
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .brand-title {
+            font-size: 1.75rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .brand-subtitle {
+            font-size: 0.875rem;
+            opacity: 0.85;
+            font-weight: 400;
+        }
+
+        /* Calendar Section */
+        .calendar-section {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 1.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .calendar-header h3 {
+            font-size: 1.125rem;
+            font-family: 'IBM Plex Sans', sans-serif;
+        }
+
+        .calendar-nav {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .calendar-nav button {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .calendar-nav button:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+            margin-top: 1rem;
+        }
+
+        .calendar-day-label {
+            text-align: center;
+            font-size: 0.75rem;
+            font-weight: 600;
+            opacity: 0.7;
+            padding: 0.5rem 0;
+        }
+
+        .calendar-day {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.875rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .calendar-day:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .calendar-day.other-month {
+            opacity: 0.3;
+            cursor: default;
+        }
+
+        .calendar-day.has-snapshot {
+            background: rgba(16, 185, 129, 0.3);
+            font-weight: 600;
+        }
+
+        .calendar-day.has-snapshot::after {
+            content: '';
+            position: absolute;
+            bottom: 4px;
+            width: 4px;
+            height: 4px;
+            background: #10B981;
+            border-radius: 50%;
+        }
+
+        .calendar-day.selected {
+            background: white;
+            color: var(--primary);
+            font-weight: 700;
+            box-shadow: var(--shadow-md);
+        }
+
+        .calendar-day.today {
+            border: 2px solid rgba(251, 191, 36, 0.8);
+        }
+
+        /* Available Snapshots List */
+        .available-snapshots {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Action Button */
+        .action-section {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .btn-primary {
+            background: white;
+            color: var(--primary);
+            border: none;
+            padding: 1rem 1.5rem;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            transition: all 0.2s;
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-primary svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        /* Status Indicator */
+        .status-indicator {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 1rem;
+            border-radius: 12px;
+            font-size: 0.875rem;
+        }
+
+        .status-indicator strong {
+            display: block;
+            margin-bottom: 0.25rem;
+        }
+
+        .status-loading {
+            border-left: 4px solid var(--warning-light);
+        }
+
+        .status-success {
+            border-left: 4px solid var(--success-light);
+        }
+
+        .status-error {
+            border-left: 4px solid var(--danger-light);
+        }
+
+        /* Navigation */
+        .nav-section {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .nav-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 0.875rem 1.25rem;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 0.9375rem;
+            font-weight: 500;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            text-align: left;
+        }
+
+        .nav-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .nav-btn.active {
+            background: white;
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        .nav-btn svg {
+            width: 20px;
+            height: 20px;
+            flex-shrink: 0;
+        }
+
+        /* Main Content */
+        .main-content {
+            padding: 3rem;
+            overflow-y: auto;
+            max-height: 100vh;
+        }
+
+        .content-header {
+            margin-bottom: 2.5rem;
+        }
+
+        .content-title {
+            font-size: 2rem;
+            color: var(--neutral-900);
+            margin-bottom: 0.5rem;
+        }
+
+        .content-subtitle {
+            color: var(--neutral-500);
+            font-size: 1rem;
+        }
+
+        .section {
+            display: none;
+        }
+
+        .section.active {
+            display: block;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Stats Grid - Bento Box Layout */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2.5rem;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--neutral-200);
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: var(--primary);
+        }
+
+        .stat-card.success::before { background: var(--success); }
+        .stat-card.warning::before { background: var(--warning); }
+        .stat-card.danger::before { background: var(--danger); }
+
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .stat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 1.5rem;
+        }
+
+        .stat-label {
+            font-size: 0.8125rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            font-weight: 600;
+            color: var(--neutral-500);
+        }
+
+        .stat-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--primary);
+            color: white;
+        }
+
+        .stat-card.success .stat-icon { background: var(--success); }
+        .stat-card.warning .stat-icon { background: var(--warning); }
+        .stat-card.danger .stat-icon { background: var(--danger); }
+
+        .stat-icon svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        .stat-value {
+            font-family: 'Fraunces', Georgia, serif;
+            font-size: 2.75rem;
+            font-weight: 700;
+            color: var(--neutral-900);
+            margin-bottom: 0.5rem;
+            line-height: 1;
+        }
+
+        .stat-description {
+            color: var(--neutral-600);
+            font-size: 0.9375rem;
+        }
+
+        .stat-count {
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        /* Chart Card */
+        .chart-card {
+            background: white;
+            border-radius: 20px;
+            padding: 2.5rem;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--neutral-200);
+            margin-bottom: 2rem;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 2px solid var(--neutral-200);
+        }
+
+        .chart-title {
+            font-size: 1.5rem;
+            color: var(--neutral-900);
+        }
+
+        /* Progress Bars */
+        .progress-list {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        .progress-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+        }
+
+        .progress-label {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--neutral-900);
+        }
+
+        .progress-value {
+            font-family: 'Fraunces', Georgia, serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .progress-bar-container {
+            height: 12px;
+            background: var(--neutral-200);
+            border-radius: 100px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            border-radius: 100px;
+            background: var(--primary);
+            transition: width 1s cubic-bezier(0.65, 0, 0.35, 1);
+            position: relative;
+        }
+
+        .progress-bar-fill.success { background: var(--success); }
+        .progress-bar-fill.warning { background: var(--warning); }
+        .progress-bar-fill.danger { background: var(--danger); }
+
+        .progress-bar-fill::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            animation: shimmer 2s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        .progress-meta {
+            font-size: 0.875rem;
+            color: var(--neutral-600);
+        }
+
+        /* Alert */
+        .alert {
+            background: white;
+            border: 2px solid var(--neutral-200);
+            border-left: 4px solid var(--primary);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            display: flex;
+            gap: 1rem;
+        }
+
+        .alert-icon {
+            width: 24px;
+            height: 24px;
+            color: var(--primary);
+            flex-shrink: 0;
+        }
+
+        .alert.warning {
+            border-left-color: var(--warning);
+        }
+
+        .alert.warning .alert-icon {
+            color: var(--warning);
+        }
+
+        /* Table */
+        .table-container {
+            background: white;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--neutral-200);
+        }
+
+        .table-header {
+            padding: 2rem 2.5rem;
+            border-bottom: 2px solid var(--neutral-200);
+            background: var(--neutral-50);
+        }
+
+        .table-title {
+            font-size: 1.5rem;
+            color: var(--neutral-900);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background: var(--neutral-50);
+        }
+
+        th {
+            text-align: left;
+            padding: 1rem 2.5rem;
+            font-size: 0.8125rem;
+            font-weight: 700;
+            color: var(--neutral-500);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        td {
+            padding: 1.25rem 2.5rem;
+            border-top: 1px solid var(--neutral-200);
+            font-size: 0.9375rem;
+        }
+
+        tbody tr:hover {
+            background: var(--neutral-50);
+        }
+
+        /* Loading Spinner */
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .app-container {
+                grid-template-columns: 1fr;
+            }
+
+            .sidebar {
+                position: relative;
+                height: auto;
+            }
+
+            .main-content {
+                padding: 2rem 1.5rem;
+                max-height: none;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            }
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                padding: 1.5rem 1rem;
+            }
+
+            .stat-card, .chart-card {
+                padding: 1.5rem;
+            }
+
+            .content-title {
+                font-size: 1.5rem;
+            }
+
+            th, td {
+                padding: 1rem 1.5rem;
+            }
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 2rem;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: white;
+            border-radius: 20px;
+            padding: 2rem;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: var(--shadow-xl);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-title {
+            font-size: 1.5rem;
+            color: var(--neutral-900);
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0.5rem;
+            color: var(--neutral-500);
+        }
+
+        .modal-body {
+            color: var(--neutral-700);
+            line-height: 1.6;
+        }
+
+        .modal-footer {
+            margin-top: 1.5rem;
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+        }
+
+        .btn-secondary {
+            background: var(--neutral-200);
+            color: var(--neutral-900);
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-secondary:hover {
+            background: var(--neutral-300);
+        }
+
+        /* Chart Containers */
+        .chart-container {
+            background: white;
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--neutral-200);
+            margin-bottom: 2rem;
+        }
+
+        .chart-container canvas {
+            max-height: 400px;
+        }
+
+        .chart-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--neutral-900);
+            margin-bottom: 0.5rem;
+        }
+
+        .chart-subtitle {
+            font-size: 0.875rem;
+            color: var(--neutral-500);
+            margin-bottom: 1.5rem;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 2rem;
+            margin-bottom: 2.5rem;
+        }
+
+        /* Comparison Table */
+        .comparison-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: var(--shadow);
+        }
+
+        .comparison-table th {
+            background: var(--primary);
+            color: white;
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.875rem;
+        }
+
+        .comparison-table td {
+            padding: 1rem;
+            border-bottom: 1px solid var(--neutral-200);
+            font-size: 0.875rem;
+        }
+
+        .comparison-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .comparison-table tr:hover {
+            background: var(--neutral-50);
+        }
+
+        .trend-up {
+            color: var(--success);
+            font-weight: 600;
+        }
+
+        .trend-down {
+            color: var(--danger);
+            font-weight: 600;
+        }
+
+        .trend-neutral {
+            color: var(--neutral-500);
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="brand">
+                <h1 class="brand-title">Pré-Natal Analytics</h1>
+                <p class="brand-subtitle">Sistema de Monitoramento • SMS Rio</p>
+            </div>
+
+            <!-- Calendar -->
+            <div class="calendar-section">
+                <div class="calendar-header">
+                    <h3 id="calendar-month-year">Dezembro 2025</h3>
+                    <div class="calendar-nav">
+                        <button onclick="changeMonth(-1)" title="Mês anterior">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                            </svg>
+                        </button>
+                        <button onclick="changeMonth(1)" title="Próximo mês">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="calendar-grid" id="calendar-grid">
+                    <!-- Calendar will be rendered here by JavaScript -->
+                </div>
+            </div>
+
+            <!-- Available Snapshots List -->
+            <div class="available-snapshots" id="available-snapshots-list" style="display: none;">
+                <h4 style="font-size: 0.875rem; font-weight: 600; color: var(--neutral-700); margin-bottom: 0.5rem;">
+                    📊 Snapshots Disponíveis
+                </h4>
+                <div id="snapshots-list" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                    <!-- Snapshots will be rendered here -->
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="action-section">
+                <button class="btn-primary" onclick="refreshSnapshots()" id="refresh-btn">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                    <span>Atualizar Dados</span>
+                </button>
+
+                <div id="status-indicator" class="status-indicator" style="display: none;">
+                    <strong>Status:</strong>
+                    <span id="status-text">Aguardando...</span>
+                </div>
+            </div>
+
+            <!-- Navigation -->
+            <nav class="nav-section">
+                <button class="nav-btn active" onclick="showSection('overview')" id="btn-overview">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+                    </svg>
+                    Visão Geral
+                </button>
+                <button class="nav-btn" onclick="showSection('prescricoes')" id="btn-prescricoes">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/>
+                    </svg>
+                    Prescrições
+                </button>
+                <button class="nav-btn" onclick="showSection('condicoes')" id="btn-condicoes">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    Condições
+                </button>
+                <button class="nav-btn" onclick="showSection('adequacao')" id="btn-adequacao">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                    </svg>
+                    Adequação
+                </button>
+                <button class="nav-btn" onclick="showSection('evolucao')" id="btn-evolucao">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/>
+                    </svg>
+                    Evolução Histórica
+                </button>
+                <button class="nav-btn" onclick="showSection('dados')" id="btn-dados">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                    </svg>
+                    Dados Completos
+                </button>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Overview Section -->
+            <section id="overview" class="section active">
+                <div class="content-header">
+                    <h2 class="content-title">Visão Geral</h2>
+                    <p class="content-subtitle">Indicadores principais de pré-natal</p>
+                </div>
+
+                <div class="alert">
+                    <svg class="alert-icon" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                    </svg>
+                    <div>
+                        <strong>Snapshot Selecionado:</strong> <span id="selected-date-display">Nenhuma data selecionada</span><br>
+                        Selecione uma data no calendário para visualizar os dados históricos.
+                    </div>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-label">Total Gestantes</div>
+                            <div class="stat-icon">
+                                <svg fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="stat-value" id="total-gestantes">—</div>
+                        <div class="stat-description">gestantes ativas</div>
+                    </div>
+
+                    <div class="stat-card success">
+                        <div class="stat-header">
+                            <div class="stat-label">Ácido Fólico</div>
+                            <div class="stat-icon">
+                                <svg fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="stat-value" id="perc-folico">—</div>
+                        <div class="stat-description">
+                            <span class="stat-count" id="count-folico">—</span> com prescrição
+                        </div>
+                    </div>
+
+                    <div class="stat-card success">
+                        <div class="stat-header">
+                            <div class="stat-label">Carbonato Cálcio</div>
+                            <div class="stat-icon">
+                                <svg fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="stat-value" id="perc-calcio">—</div>
+                        <div class="stat-description">
+                            <span class="stat-count" id="count-calcio">—</span> com prescrição
+                        </div>
+                    </div>
+
+                    <div class="stat-card warning">
+                        <div class="stat-header">
+                            <div class="stat-label">Hipertensão</div>
+                            <div class="stat-icon">
+                                <svg fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="stat-value" id="perc-has">—</div>
+                        <div class="stat-description">
+                            <span class="stat-count" id="count-has">—</span> diagnosticadas
+                        </div>
+                    </div>
+
+                    <div class="stat-card danger">
+                        <div class="stat-header">
+                            <div class="stat-label">Diabetes</div>
+                            <div class="stat-icon">
+                                <svg fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clip-rule="evenodd"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="stat-value" id="perc-dm">—</div>
+                        <div class="stat-description">
+                            <span class="stat-count" id="count-dm">—</span> diagnosticadas
+                        </div>
+                    </div>
+
+                    <div class="stat-card danger">
+                        <div class="stat-header">
+                            <div class="stat-label">Sífilis</div>
+                            <div class="stat-icon">
+                                <svg fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="stat-value" id="perc-sifilis">—</div>
+                        <div class="stat-description">
+                            <span class="stat-count" id="count-sifilis">—</span> diagnosticadas
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Prescrições Section -->
+            <section id="prescricoes" class="section">
+                <div class="content-header">
+                    <h2 class="content-title">Prescrições Suplementares</h2>
+                    <p class="content-subtitle">Cobertura de ácido fólico e carbonato de cálcio</p>
+                </div>
+
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h3 class="chart-title">Cobertura de Prescrições</h3>
+                    </div>
+                    <div class="progress-list">
+                        <div class="progress-item">
+                            <div class="progress-header">
+                                <span class="progress-label">Ácido Fólico</span>
+                                <span class="progress-value" id="prog-folico-val">—</span>
+                            </div>
+                            <div class="progress-bar-container">
+                                <div class="progress-bar-fill success" id="prog-folico" style="width: 0%"></div>
+                            </div>
+                            <div class="progress-meta">
+                                <span id="prog-folico-count">—</span> gestantes com prescrição
+                            </div>
+                        </div>
+
+                        <div class="progress-item">
+                            <div class="progress-header">
+                                <span class="progress-label">Carbonato de Cálcio</span>
+                                <span class="progress-value" id="prog-calcio-val">—</span>
+                            </div>
+                            <div class="progress-bar-container">
+                                <div class="progress-bar-fill success" id="prog-calcio" style="width: 0%"></div>
+                            </div>
+                            <div class="progress-meta">
+                                <span id="prog-calcio-count">—</span> gestantes com prescrição
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="alert warning">
+                    <svg class="alert-icon" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                    </svg>
+                    <div>
+                        <strong>Recomendação MS:</strong> Toda gestante deve receber suplementação de ácido fólico (prevenir defeitos do tubo neural) e carbonato de cálcio (prevenir pré-eclâmpsia).
+                    </div>
+                </div>
+            </section>
+
+            <!-- Condições Section -->
+            <section id="condicoes" class="section">
+                <div class="content-header">
+                    <h2 class="content-title">Condições Clínicas</h2>
+                    <p class="content-subtitle">Prevalência de condições de alto risco</p>
+                </div>
+
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h3 class="chart-title">Prevalência</h3>
+                    </div>
+                    <div class="progress-list">
+                        <div class="progress-item">
+                            <div class="progress-header">
+                                <span class="progress-label">Hipertensão (Total)</span>
+                                <span class="progress-value" id="cond-has-val">—</span>
+                            </div>
+                            <div class="progress-bar-container">
+                                <div class="progress-bar-fill warning" id="cond-has" style="width: 0%"></div>
+                            </div>
+                            <div class="progress-meta">
+                                <span id="cond-has-count">—</span> gestantes diagnosticadas
+                            </div>
+                        </div>
+
+                        <div class="progress-item">
+                            <div class="progress-header">
+                                <span class="progress-label">Diabetes (Total)</span>
+                                <span class="progress-value" id="cond-dm-val">—</span>
+                            </div>
+                            <div class="progress-bar-container">
+                                <div class="progress-bar-fill danger" id="cond-dm" style="width: 0%"></div>
+                            </div>
+                            <div class="progress-meta">
+                                <span id="cond-dm-count">—</span> gestantes diagnosticadas
+                            </div>
+                        </div>
+
+                        <div class="progress-item">
+                            <div class="progress-header">
+                                <span class="progress-label">Sífilis</span>
+                                <span class="progress-value" id="cond-sifilis-val">—</span>
+                            </div>
+                            <div class="progress-bar-container">
+                                <div class="progress-bar-fill danger" id="cond-sifilis" style="width: 0%"></div>
+                            </div>
+                            <div class="progress-meta">
+                                <span id="cond-sifilis-count">—</span> gestantes diagnosticadas
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Adequação Section -->
+            <section id="adequacao" class="section">
+                <div class="content-header">
+                    <h2 class="content-title">Adequação Terapêutica</h2>
+                    <p class="content-subtitle">Cobertura de tratamento para condições crônicas</p>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card success">
+                        <div class="stat-header">
+                            <div class="stat-label">Hipertensas Medicadas</div>
+                            <div class="stat-icon">
+                                <svg fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="stat-value" id="adeq-has-med">—</div>
+                        <div class="stat-description">
+                            <span class="stat-count" id="adeq-has-count">—</span> de <span class="stat-count" id="adeq-has-total">—</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card success">
+                        <div class="stat-header">
+                            <div class="stat-label">Diabéticas Medicadas</div>
+                            <div class="stat-icon">
+                                <svg fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="stat-value" id="adeq-dm-med">—</div>
+                        <div class="stat-description">
+                            <span class="stat-count" id="adeq-dm-count">—</span> de <span class="stat-count" id="adeq-dm-total">—</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h3 class="chart-title">Taxa de Adequação</h3>
+                    </div>
+                    <div class="progress-list">
+                        <div class="progress-item">
+                            <div class="progress-header">
+                                <span class="progress-label">Hipertensas com Medicação</span>
+                                <span class="progress-value" id="taxa-has-val">—</span>
+                            </div>
+                            <div class="progress-bar-container">
+                                <div class="progress-bar-fill success" id="taxa-has" style="width: 0%"></div>
+                            </div>
+                        </div>
+
+                        <div class="progress-item">
+                            <div class="progress-header">
+                                <span class="progress-label">Diabéticas com Medicação</span>
+                                <span class="progress-value" id="taxa-dm-val">—</span>
+                            </div>
+                            <div class="progress-bar-container">
+                                <div class="progress-bar-fill success" id="taxa-dm" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Evolução Histórica Section -->
+            <section id="evolucao" class="section">
+                <div class="content-header">
+                    <h2 class="content-title">Evolução Histórica</h2>
+                    <p class="content-subtitle">Acompanhamento temporal dos principais indicadores</p>
+                </div>
+
+                <div class="alert">
+                    <svg class="alert-icon" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                    </svg>
+                    <div id="evolucao-alert">
+                        <strong>Carregando dados históricos...</strong><br>
+                        Execute "Atualizar Dados" para carregar múltiplos snapshots e visualizar a evolução temporal.
+                    </div>
+                </div>
+
+                <!-- Visão Geral - Indicadores Principais -->
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h3 class="chart-title">Indicadores Principais</h3>
+                        <p class="chart-subtitle">Evolução do total de gestantes e cobertura de suplementação</p>
+                    </div>
+                    <div class="charts-grid">
+                        <div class="chart-container">
+                            <canvas id="chart-total-gestantes"></canvas>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="chart-suplementacao"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Condições Clínicas -->
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h3 class="chart-title">Prevalência de Condições</h3>
+                        <p class="chart-subtitle">Evolução da hipertensão, diabetes e sífilis ao longo do tempo</p>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="chart-condicoes"></canvas>
+                    </div>
+                </div>
+
+                <!-- Adequação Terapêutica -->
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h3 class="chart-title">Adequação de Tratamento</h3>
+                        <p class="chart-subtitle">Percentual de gestantes com condições crônicas recebendo medicação adequada</p>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="chart-adequacao"></canvas>
+                    </div>
+                </div>
+
+                <!-- Tabela Comparativa -->
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h3 class="chart-title">Comparação Temporal</h3>
+                        <p class="chart-subtitle">Variação dos indicadores entre snapshots</p>
+                    </div>
+                    <table class="comparison-table">
+                        <thead>
+                            <tr>
+                                <th>Indicador</th>
+                                <th>Mais Antigo</th>
+                                <th>Mais Recente</th>
+                                <th>Variação</th>
+                                <th>Tendência</th>
+                            </tr>
+                        </thead>
+                        <tbody id="comparison-table-body">
+                            <tr>
+                                <td colspan="5" style="text-align: center; padding: 2rem; color: var(--neutral-500);">
+                                    Carregue pelo menos 2 snapshots para visualizar comparações
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Dados Section -->
+            <section id="dados" class="section">
+                <div class="content-header">
+                    <h2 class="content-title">Dados Completos</h2>
+                    <p class="content-subtitle">Tabela consolidada de indicadores</p>
+                </div>
+
+                <div class="table-container">
+                    <div class="table-header">
+                        <h3 class="table-title">Todos os Indicadores</h3>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Indicador</th>
+                                <th>Quantidade</th>
+                                <th>Percentual</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="data-table-body">
+                            <tr>
+                                <td colspan="4" style="text-align: center; padding: 3rem; color: var(--neutral-500);">
+                                    Nenhum dado carregado
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modal for BigQuery Instructions -->
+    <div class="modal-overlay" id="bq-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Executar Query no BigQuery</h3>
+                <button class="modal-close" onclick="closeModal()">
+                    <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p><strong>Execute no terminal para carregar todos os dados:</strong></p>
+                <pre style="background: var(--neutral-100); padding: 1rem; border-radius: 8px; overflow-x: auto; margin: 1rem 0; font-size: 0.8125rem; line-height: 1.4;">bq query --format=json --use_legacy_sql=false \
+  -q "$(cat query_dashboard_completo.sql)" \
+  > dashboard_data_completo.json</pre>
+                <p style="margin-top: 1rem; font-size: 0.875rem; color: var(--neutral-600);">
+                    <strong>Nota:</strong> Certifique-se que o arquivo <code>query_dashboard_completo.sql</code> está na mesma pasta do dashboard.
+                </p>
+                <p style="margin-top: 0.5rem; font-size: 0.875rem; color: var(--neutral-600);">
+                    Depois de executar, recarregue esta página para ver os dados atualizados.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="closeModal()">Fechar</button>
+                <button class="btn-primary" onclick="copyCommand()">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                    </svg>
+                    Copiar Comando
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let currentDate = new Date();
+        let selectedDate = null;
+        let availableSnapshots = new Set();
+        let snapshotData = {};
+
+        // Charts
+        let chartTotalGestantes = null;
+        let chartSuplementacao = null;
+        let chartCondicoes = null;
+        let chartAdequacao = null;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadSnapshots();
+            renderCalendar();
+            initializeCharts();
+        });
+
+        // Calendar Functions
+        function renderCalendar() {
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+
+            // Update header
+            const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+                               'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+            document.getElementById('calendar-month-year').textContent = `${monthNames[month]} ${year}`;
+
+            // Calculate days
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const daysInPrevMonth = new Date(year, month, 0).getDate();
+
+            const calendarGrid = document.getElementById('calendar-grid');
+            calendarGrid.innerHTML = '';
+
+            // Day labels
+            const dayLabels = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
+            dayLabels.forEach(label => {
+                const labelDiv = document.createElement('div');
+                labelDiv.className = 'calendar-day-label';
+                labelDiv.textContent = label;
+                calendarGrid.appendChild(labelDiv);
+            });
+
+            // Previous month days
+            for (let i = firstDay - 1; i >= 0; i--) {
+                const day = daysInPrevMonth - i;
+                const cell = createDayCell(day, year, month - 1, true);
+                calendarGrid.appendChild(cell);
+            }
+
+            // Current month days
+            for (let day = 1; day <= daysInMonth; day++) {
+                const cell = createDayCell(day, year, month, false);
+                calendarGrid.appendChild(cell);
+            }
+
+            // Next month days
+            const remainingCells = 42 - (firstDay + daysInMonth);
+            for (let day = 1; day <= remainingCells; day++) {
+                const cell = createDayCell(day, year, month + 1, true);
+                calendarGrid.appendChild(cell);
+            }
+        }
+
+        function createDayCell(day, year, month, isOtherMonth) {
+            const cell = document.createElement('div');
+            cell.className = 'calendar-day';
+            cell.textContent = day;
+
+            if (isOtherMonth) {
+                cell.classList.add('other-month');
+                return cell;
+            }
+
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+            // Check if has snapshot
+            if (availableSnapshots.has(dateStr)) {
+                cell.classList.add('has-snapshot');
+                cell.onclick = () => selectDate(dateStr);
+            }
+
+            // Check if selected
+            if (selectedDate === dateStr) {
+                cell.classList.add('selected');
+            }
+
+            // Check if today
+            const today = new Date();
+            if (year === today.getFullYear() && month === today.getMonth() && day === today.getDate()) {
+                cell.classList.add('today');
+            }
+
+            return cell;
+        }
+
+        function changeMonth(delta) {
+            currentDate.setMonth(currentDate.getMonth() + delta);
+            renderCalendar();
+            updateNavigationIndicators();
+        }
+
+        function updateNavigationIndicators() {
+            const currentYear = currentDate.getFullYear();
+            const currentMonth = currentDate.getMonth();
+
+            // Check if there are snapshots in previous months
+            const hasPrevious = Array.from(availableSnapshots).some(dateStr => {
+                const [year, month] = dateStr.split('-').map(Number);
+                return new Date(year, month - 1) < new Date(currentYear, currentMonth);
+            });
+
+            // Check if there are snapshots in next months
+            const hasNext = Array.from(availableSnapshots).some(dateStr => {
+                const [year, month] = dateStr.split('-').map(Number);
+                return new Date(year, month - 1) > new Date(currentYear, currentMonth);
+            });
+
+            // Update button titles
+            const prevBtn = document.querySelector('button[onclick="changeMonth(-1)"]');
+            const nextBtn = document.querySelector('button[onclick="changeMonth(1)"]');
+
+            if (prevBtn) {
+                prevBtn.title = hasPrevious ? '← Existem dados em meses anteriores' : '← Mês anterior';
+                prevBtn.style.fontWeight = hasPrevious ? 'bold' : 'normal';
+            }
+            if (nextBtn) {
+                nextBtn.title = hasNext ? 'Existem dados em meses futuros →' : 'Próximo mês →';
+                nextBtn.style.fontWeight = hasNext ? 'bold' : 'normal';
+            }
+        }
+
+        function selectDate(dateStr) {
+            selectedDate = dateStr;
+            renderCalendar();
+            renderSnapshotsList();
+            loadDataForDate(dateStr);
+            document.getElementById('selected-date-display').textContent = formatDatePT(dateStr);
+        }
+
+        function formatDatePT(dateStr) {
+            const [year, month, day] = dateStr.split('-');
+            return `${day}/${month}/${year}`;
+        }
+
+        // Data Loading Functions
+        async function loadSnapshots() {
+            try {
+                // Try to load from local file with complete data
+                const response = await fetch('./dashboard_data_completo.json');
+                if (response.ok) {
+                    const data = await response.json();
+                    processCompleteData(data);
+                } else {
+                    // Try to load from embedded data
+                    loadEmbeddedData();
+                }
+            } catch (error) {
+                console.warn('Could not load complete data, using embedded data:', error);
+                loadEmbeddedData();
+            }
+        }
+
+        function processCompleteData(data) {
+            availableSnapshots.clear();
+            snapshotData = {};
+            let mostRecentDate = null;
+
+            console.log('🔍 DEBUG: Processing data...', data);
+            console.log('🔍 DEBUG: Is array?', Array.isArray(data));
+            console.log('🔍 DEBUG: Data length:', data?.length);
+
+            // Handle BigQuery JSON format (array of rows)
+            if (Array.isArray(data)) {
+                data.forEach((row, index) => {
+                    console.log(`🔍 DEBUG: Processing row ${index + 1}:`, row.data_snapshot);
+                    if (row.data_snapshot) {
+                        const dateStr = row.data_snapshot;
+                        availableSnapshots.add(dateStr);
+                        console.log(`✅ DEBUG: Added snapshot ${dateStr} to availableSnapshots`);
+
+                        // Track most recent date
+                        if (!mostRecentDate || dateStr > mostRecentDate) {
+                            mostRecentDate = dateStr;
+                        }
+
+                        // Store complete data for this snapshot
+                        snapshotData[dateStr] = {
+                            total_gestantes_ativas: parseInt(row.total_gestantes_ativas || 0),
+                            gestantes_acido_folico: parseInt(row.gestantes_acido_folico || 0),
+                            perc_acido_folico: parseFloat(row.perc_acido_folico || 0),
+                            gestantes_carbonato_calcio: parseInt(row.gestantes_carbonato_calcio || 0),
+                            perc_carbonato_calcio: parseFloat(row.perc_carbonato_calcio || 0),
+                            gestantes_hipertensao: parseInt(row.gestantes_hipertensao || 0),
+                            perc_hipertensao: parseFloat(row.perc_hipertensao || 0),
+                            gestantes_diabetes: parseInt(row.gestantes_diabetes || 0),
+                            perc_diabetes: parseFloat(row.perc_diabetes || 0),
+                            gestantes_sifilis: parseInt(row.gestantes_sifilis || 0),
+                            perc_sifilis: parseFloat(row.perc_sifilis || 0),
+                            hipertensas_com_medicacao: parseInt(row.hipertensas_com_medicacao || 0),
+                            perc_hipertensas_medicadas: parseFloat(row.perc_hipertensas_medicadas || 0),
+                            diabeticas_com_medicacao: parseInt(row.diabeticas_com_medicacao || 0),
+                            perc_diabeticas_medicadas: parseFloat(row.perc_diabeticas_medicadas || 0)
+                        };
+                    }
+                });
+            }
+
+            console.log('🔍 DEBUG: Final availableSnapshots size:', availableSnapshots.size);
+            console.log('🔍 DEBUG: Final availableSnapshots:', Array.from(availableSnapshots));
+            console.log('🔍 DEBUG: Final snapshotData keys:', Object.keys(snapshotData));
+
+            // Navigate to most recent date's month automatically
+            if (mostRecentDate) {
+                const [year, month, day] = mostRecentDate.split('-').map(Number);
+                currentDate = new Date(year, month - 1, 1); // month - 1 because JS months are 0-indexed
+            }
+
+            renderCalendar();
+            renderSnapshotsList();
+            updateNavigationIndicators();
+            updateHistoricalCharts();
+            console.log(`✅ Loaded ${availableSnapshots.size} snapshots with complete data`);
+            if (mostRecentDate) {
+                console.log(`📅 Navigated to ${mostRecentDate}`);
+            }
+        }
+
+        function renderSnapshotsList() {
+            const snapshotsListContainer = document.getElementById('snapshots-list');
+            const snapshotsPanel = document.getElementById('available-snapshots-list');
+
+            if (availableSnapshots.size === 0) {
+                snapshotsPanel.style.display = 'none';
+                return;
+            }
+
+            snapshotsPanel.style.display = 'block';
+
+            // Sort snapshots by date (most recent first)
+            const sortedSnapshots = Array.from(availableSnapshots).sort((a, b) => b.localeCompare(a));
+
+            snapshotsListContainer.innerHTML = sortedSnapshots.map(dateStr => {
+                const [year, month, day] = dateStr.split('-');
+                const formattedDate = `${day}/${month}/${year}`;
+                const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+                const monthName = monthNames[parseInt(month) - 1];
+
+                return `
+                    <button
+                        onclick="navigateToDate('${dateStr}')"
+                        style="
+                            display: flex;
+                            align-items: center;
+                            gap: 0.5rem;
+                            padding: 0.5rem;
+                            background: ${selectedDate === dateStr ? 'var(--primary-100)' : 'var(--neutral-50)'};
+                            border: 1px solid ${selectedDate === dateStr ? 'var(--primary-600)' : 'var(--neutral-200)'};
+                            border-radius: 6px;
+                            cursor: pointer;
+                            transition: all 0.2s;
+                            font-size: 0.8125rem;
+                            color: var(--neutral-700);
+                            text-align: left;
+                        "
+                        onmouseover="this.style.background='var(--primary-50)'; this.style.borderColor='var(--primary-400)'"
+                        onmouseout="this.style.background='${selectedDate === dateStr ? 'var(--primary-100)' : 'var(--neutral-50)'}'; this.style.borderColor='${selectedDate === dateStr ? 'var(--primary-600)' : 'var(--neutral-200)'}'"
+                    >
+                        <span style="font-size: 1rem;">📅</span>
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600;">${formattedDate}</div>
+                            <div style="font-size: 0.75rem; color: var(--neutral-500);">${monthName} ${year}</div>
+                        </div>
+                        ${selectedDate === dateStr ? '<span style="color: var(--primary-600);">✓</span>' : ''}
+                    </button>
+                `;
+            }).join('');
+        }
+
+        function navigateToDate(dateStr) {
+            const [year, month] = dateStr.split('-').map(Number);
+            currentDate = new Date(year, month - 1, 1);
+            selectDate(dateStr);
+        }
+
+        function loadEmbeddedData() {
+            // Embedded data from BigQuery (real data)
+            const exampleDates = [
+                '2025-07-01'
+            ];
+
+            exampleDates.forEach(date => availableSnapshots.add(date));
+
+            // Real data from dashboard_data_completo.json
+            snapshotData = {
+                '2025-07-01': {
+                    total_gestantes_ativas: 27312,
+                    gestantes_acido_folico: 17614,
+                    perc_acido_folico: 64.49,
+                    gestantes_carbonato_calcio: 14399,
+                    perc_carbonato_calcio: 52.72,
+                    gestantes_hipertensao: 1069,
+                    perc_hipertensao: 3.91,
+                    gestantes_diabetes: 2301,
+                    perc_diabetes: 8.42,
+                    gestantes_sifilis: 0,
+                    perc_sifilis: 0.0,
+                    hipertensas_com_medicacao: 496,
+                    perc_hipertensas_medicadas: 46.4,
+                    diabeticas_com_medicacao: 234,
+                    perc_diabeticas_medicadas: 10.17
+                }
+            };
+
+            // Navigate to July 2025 automatically
+            currentDate = new Date(2025, 6, 1); // Month is 0-indexed (6 = July)
+            renderCalendar();
+            renderSnapshotsList();
+            updateNavigationIndicators();
+            updateHistoricalCharts();
+            console.log('✅ Loaded embedded data for 2025-07-01');
+        }
+
+        async function loadDataForDate(dateStr) {
+            // Check if data is already loaded in memory
+            if (snapshotData[dateStr]) {
+                updateDashboard(snapshotData[dateStr]);
+                return;
+            }
+
+            // If not, show message
+            showStatus('Dados não encontrados. Execute "Atualizar Dados" primeiro.', 'warning');
+            console.log('⚠️ Snapshot não encontrado:', dateStr);
+        }
+
+
+        async function refreshSnapshots() {
+            const btn = document.getElementById('refresh-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<div class="spinner"></div><span>Atualizando...</span>';
+
+            showStatus('Preparando query...', 'loading');
+
+            // Show modal with instructions
+            setTimeout(() => {
+                document.getElementById('bq-modal').classList.add('active');
+                btn.disabled = false;
+                btn.innerHTML = `
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                    <span>Atualizar Dados</span>
+                `;
+                showStatus('Aguardando execução da query', 'warning');
+            }, 500);
+        }
+
+        function showStatus(message, type) {
+            const indicator = document.getElementById('status-indicator');
+            const text = document.getElementById('status-text');
+
+            indicator.style.display = 'block';
+            indicator.className = `status-indicator status-${type}`;
+            text.textContent = message;
+        }
+
+        // Navigation
+        function showSection(sectionId) {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.getElementById(sectionId).classList.add('active');
+
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(`btn-${sectionId}`).classList.add('active');
+        }
+
+        // Update Dashboard
+        function updateDashboard(data) {
+            const fmt = (n) => n.toLocaleString('pt-BR');
+            const pct = (n) => n.toFixed(1) + '%';
+
+            // Overview
+            document.getElementById('total-gestantes').textContent = fmt(data.total_gestantes_ativas);
+            document.getElementById('perc-folico').textContent = pct(data.perc_acido_folico);
+            document.getElementById('count-folico').textContent = fmt(data.gestantes_acido_folico);
+            document.getElementById('perc-calcio').textContent = pct(data.perc_carbonato_calcio);
+            document.getElementById('count-calcio').textContent = fmt(data.gestantes_carbonato_calcio);
+            document.getElementById('perc-has').textContent = pct(data.perc_hipertensao);
+            document.getElementById('count-has').textContent = fmt(data.gestantes_hipertensao);
+            document.getElementById('perc-dm').textContent = pct(data.perc_diabetes);
+            document.getElementById('count-dm').textContent = fmt(data.gestantes_diabetes);
+            document.getElementById('perc-sifilis').textContent = pct(data.perc_sifilis);
+            document.getElementById('count-sifilis').textContent = fmt(data.gestantes_sifilis);
+
+            // Prescrições
+            document.getElementById('prog-folico-val').textContent = pct(data.perc_acido_folico);
+            document.getElementById('prog-folico').style.width = data.perc_acido_folico + '%';
+            document.getElementById('prog-folico-count').textContent = fmt(data.gestantes_acido_folico);
+
+            document.getElementById('prog-calcio-val').textContent = pct(data.perc_carbonato_calcio);
+            document.getElementById('prog-calcio').style.width = data.perc_carbonato_calcio + '%';
+            document.getElementById('prog-calcio-count').textContent = fmt(data.gestantes_carbonato_calcio);
+
+            // Condições
+            document.getElementById('cond-has-val').textContent = pct(data.perc_hipertensao);
+            document.getElementById('cond-has').style.width = data.perc_hipertensao + '%';
+            document.getElementById('cond-has-count').textContent = fmt(data.gestantes_hipertensao);
+
+            document.getElementById('cond-dm-val').textContent = pct(data.perc_diabetes);
+            document.getElementById('cond-dm').style.width = data.perc_diabetes + '%';
+            document.getElementById('cond-dm-count').textContent = fmt(data.gestantes_diabetes);
+
+            document.getElementById('cond-sifilis-val').textContent = pct(data.perc_sifilis);
+            document.getElementById('cond-sifilis').style.width = data.perc_sifilis + '%';
+            document.getElementById('cond-sifilis-count').textContent = fmt(data.gestantes_sifilis);
+
+            // Adequação
+            document.getElementById('adeq-has-med').textContent = pct(data.perc_hipertensas_medicadas);
+            document.getElementById('adeq-has-count').textContent = fmt(data.hipertensas_com_medicacao);
+            document.getElementById('adeq-has-total').textContent = fmt(data.gestantes_hipertensao);
+
+            document.getElementById('adeq-dm-med').textContent = pct(data.perc_diabeticas_medicadas);
+            document.getElementById('adeq-dm-count').textContent = fmt(data.diabeticas_com_medicacao);
+            document.getElementById('adeq-dm-total').textContent = fmt(data.gestantes_diabetes);
+
+            document.getElementById('taxa-has-val').textContent = pct(data.perc_hipertensas_medicadas);
+            document.getElementById('taxa-has').style.width = data.perc_hipertensas_medicadas + '%';
+
+            document.getElementById('taxa-dm-val').textContent = pct(data.perc_diabeticas_medicadas);
+            document.getElementById('taxa-dm').style.width = data.perc_diabeticas_medicadas + '%';
+
+            // Table
+            const tbody = document.getElementById('data-table-body');
+            const rows = [
+                { indicador: 'Total de Gestantes Ativas', quantidade: data.total_gestantes_ativas, percentual: '—', status: '📊' },
+                { indicador: 'Prescrição de Ácido Fólico', quantidade: data.gestantes_acido_folico, percentual: pct(data.perc_acido_folico), status: '💊' },
+                { indicador: 'Prescrição de Carbonato de Cálcio', quantidade: data.gestantes_carbonato_calcio, percentual: pct(data.perc_carbonato_calcio), status: '💊' },
+                { indicador: 'Hipertensão (Total)', quantidade: data.gestantes_hipertensao, percentual: pct(data.perc_hipertensao), status: '⚠️' },
+                { indicador: 'Diabetes (Total)', quantidade: data.gestantes_diabetes, percentual: pct(data.perc_diabetes), status: '⚠️' },
+                { indicador: 'Sífilis', quantidade: data.gestantes_sifilis, percentual: pct(data.perc_sifilis), status: '⚠️' },
+                { indicador: 'Hipertensas com Medicação', quantidade: data.hipertensas_com_medicacao, percentual: pct(data.perc_hipertensas_medicadas), status: '✅' },
+                { indicador: 'Diabéticas com Medicação', quantidade: data.diabeticas_com_medicacao, percentual: pct(data.perc_diabeticas_medicadas), status: '✅' }
+            ];
+
+            tbody.innerHTML = rows.map(row => `
+                <tr>
+                    <td><strong>${row.indicador}</strong></td>
+                    <td>${fmt(row.quantidade)}</td>
+                    <td>${row.percentual}</td>
+                    <td style="font-size: 1.25rem;">${row.status}</td>
+                </tr>
+            `).join('');
+
+            showStatus('Dados carregados com sucesso!', 'success');
+        }
+
+        // Chart Functions
+        function initializeCharts() {
+            Chart.defaults.font.family = "'IBM Plex Sans', sans-serif";
+            Chart.defaults.color = '#57534E';
+
+            const commonOptions = {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        labels: {
+                            boxWidth: 12,
+                            padding: 15,
+                            font: { size: 12, weight: 600 }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: '#E7E5E4', drawBorder: false },
+                        ticks: { font: { size: 11 } }
+                    },
+                    x: {
+                        grid: { display: false, drawBorder: false },
+                        ticks: { font: { size: 11 } }
+                    }
+                }
+            };
+
+            // Chart 1: Total Gestantes
+            const ctx1 = document.getElementById('chart-total-gestantes');
+            if (ctx1) {
+                chartTotalGestantes = new Chart(ctx1, {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            label: 'Total de Gestantes Ativas',
+                            data: [],
+                            borderColor: '#0369A1',
+                            backgroundColor: 'rgba(3, 105, 161, 0.1)',
+                            borderWidth: 3,
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 5,
+                            pointHoverRadius: 7
+                        }]
+                    },
+                    options: commonOptions
+                });
+            }
+
+            // Chart 2: Suplementação
+            const ctx2 = document.getElementById('chart-suplementacao');
+            if (ctx2) {
+                chartSuplementacao = new Chart(ctx2, {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [
+                            {
+                                label: 'Ácido Fólico (%)',
+                                data: [],
+                                borderColor: '#059669',
+                                backgroundColor: 'rgba(5, 150, 105, 0.1)',
+                                borderWidth: 2,
+                                fill: false,
+                                tension: 0.4,
+                                pointRadius: 4,
+                                pointHoverRadius: 6
+                            },
+                            {
+                                label: 'Carbonato de Cálcio (%)',
+                                data: [],
+                                borderColor: '#10B981',
+                                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                                borderWidth: 2,
+                                fill: false,
+                                tension: 0.4,
+                                pointRadius: 4,
+                                pointHoverRadius: 6
+                            }
+                        ]
+                    },
+                    options: {
+                        ...commonOptions,
+                        scales: {
+                            ...commonOptions.scales,
+                            y: {
+                                ...commonOptions.scales.y,
+                                max: 100,
+                                ticks: {
+                                    ...commonOptions.scales.y.ticks,
+                                    callback: value => value + '%'
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            // Chart 3: Condições
+            const ctx3 = document.getElementById('chart-condicoes');
+            if (ctx3) {
+                chartCondicoes = new Chart(ctx3, {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [
+                            {
+                                label: 'Hipertensão (%)',
+                                data: [],
+                                borderColor: '#D97706',
+                                backgroundColor: 'rgba(217, 119, 6, 0.1)',
+                                borderWidth: 2,
+                                fill: false,
+                                tension: 0.4
+                            },
+                            {
+                                label: 'Diabetes (%)',
+                                data: [],
+                                borderColor: '#DC2626',
+                                backgroundColor: 'rgba(220, 38, 38, 0.1)',
+                                borderWidth: 2,
+                                fill: false,
+                                tension: 0.4
+                            },
+                            {
+                                label: 'Sífilis (%)',
+                                data: [],
+                                borderColor: '#7C3AED',
+                                backgroundColor: 'rgba(124, 58, 237, 0.1)',
+                                borderWidth: 2,
+                                fill: false,
+                                tension: 0.4
+                            }
+                        ]
+                    },
+                    options: {
+                        ...commonOptions,
+                        scales: {
+                            ...commonOptions.scales,
+                            y: {
+                                ...commonOptions.scales.y,
+                                max: 15,
+                                ticks: {
+                                    ...commonOptions.scales.y.ticks,
+                                    callback: value => value + '%'
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            // Chart 4: Adequação
+            const ctx4 = document.getElementById('chart-adequacao');
+            if (ctx4) {
+                chartAdequacao = new Chart(ctx4, {
+                    type: 'bar',
+                    data: {
+                        labels: [],
+                        datasets: [
+                            {
+                                label: 'Hipertensas Medicadas (%)',
+                                data: [],
+                                backgroundColor: 'rgba(5, 150, 105, 0.8)',
+                                borderColor: '#059669',
+                                borderWidth: 1
+                            },
+                            {
+                                label: 'Diabéticas Medicadas (%)',
+                                data: [],
+                                backgroundColor: 'rgba(16, 185, 129, 0.8)',
+                                borderColor: '#10B981',
+                                borderWidth: 1
+                            }
+                        ]
+                    },
+                    options: {
+                        ...commonOptions,
+                        scales: {
+                            ...commonOptions.scales,
+                            y: {
+                                ...commonOptions.scales.y,
+                                max: 100,
+                                ticks: {
+                                    ...commonOptions.scales.y.ticks,
+                                    callback: value => value + '%'
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        function updateHistoricalCharts() {
+            // Sort snapshots by date
+            const sortedDates = Array.from(availableSnapshots).sort();
+
+            if (sortedDates.length < 1) {
+                return;
+            }
+
+            // Prepare data arrays
+            const labels = sortedDates.map(date => {
+                const [year, month, day] = date.split('-');
+                return `${day}/${month}/${year}`;
+            });
+
+            const totalGestantes = sortedDates.map(date => snapshotData[date]?.total_gestantes_ativas || 0);
+            const percFolico = sortedDates.map(date => snapshotData[date]?.perc_acido_folico || 0);
+            const percCalcio = sortedDates.map(date => snapshotData[date]?.perc_carbonato_calcio || 0);
+            const percHas = sortedDates.map(date => snapshotData[date]?.perc_hipertensao || 0);
+            const percDm = sortedDates.map(date => snapshotData[date]?.perc_diabetes || 0);
+            const percSifilis = sortedDates.map(date => snapshotData[date]?.perc_sifilis || 0);
+            const percHasMed = sortedDates.map(date => snapshotData[date]?.perc_hipertensas_medicadas || 0);
+            const percDmMed = sortedDates.map(date => snapshotData[date]?.perc_diabeticas_medicadas || 0);
+
+            // Update Chart 1: Total Gestantes
+            if (chartTotalGestantes) {
+                chartTotalGestantes.data.labels = labels;
+                chartTotalGestantes.data.datasets[0].data = totalGestantes;
+                chartTotalGestantes.update();
+            }
+
+            // Update Chart 2: Suplementação
+            if (chartSuplementacao) {
+                chartSuplementacao.data.labels = labels;
+                chartSuplementacao.data.datasets[0].data = percFolico;
+                chartSuplementacao.data.datasets[1].data = percCalcio;
+                chartSuplementacao.update();
+            }
+
+            // Update Chart 3: Condições
+            if (chartCondicoes) {
+                chartCondicoes.data.labels = labels;
+                chartCondicoes.data.datasets[0].data = percHas;
+                chartCondicoes.data.datasets[1].data = percDm;
+                chartCondicoes.data.datasets[2].data = percSifilis;
+                chartCondicoes.update();
+            }
+
+            // Update Chart 4: Adequação
+            if (chartAdequacao) {
+                chartAdequacao.data.labels = labels;
+                chartAdequacao.data.datasets[0].data = percHasMed;
+                chartAdequacao.data.datasets[1].data = percDmMed;
+                chartAdequacao.update();
+            }
+
+            // Update comparison table
+            updateComparisonTable(sortedDates);
+
+            // Update alert
+            const alertDiv = document.getElementById('evolucao-alert');
+            if (alertDiv) {
+                if (sortedDates.length >= 2) {
+                    alertDiv.innerHTML = `<strong>✅ ${sortedDates.length} snapshots carregados</strong><br>
+                        Período: ${labels[0]} a ${labels[labels.length - 1]}`;
+                } else {
+                    alertDiv.innerHTML = `<strong>⚠️ Apenas 1 snapshot disponível</strong><br>
+                        Carregue mais snapshots para visualizar evolução temporal.`;
+                }
+            }
+        }
+
+        function updateComparisonTable(sortedDates) {
+            if (sortedDates.length < 2) return;
+
+            const tbody = document.getElementById('comparison-table-body');
+            const oldestDate = sortedDates[0];
+            const newestDate = sortedDates[sortedDates.length - 1];
+            const oldestData = snapshotData[oldestDate];
+            const newestData = snapshotData[newestDate];
+
+            const formatDate = (dateStr) => {
+                const [year, month, day] = dateStr.split('-');
+                return `${day}/${month}/${year}`;
+            };
+
+            const calculateVariation = (oldVal, newVal) => {
+                if (!oldVal || oldVal === 0) return { value: '—', trend: 'neutral' };
+                const diff = newVal - oldVal;
+                const percChange = ((diff / oldVal) * 100).toFixed(1);
+                const trend = diff > 0 ? 'up' : diff < 0 ? 'down' : 'neutral';
+                const symbol = diff > 0 ? '+' : '';
+                return { value: `${symbol}${percChange}%`, trend };
+            };
+
+            const rows = [
+                {
+                    name: 'Total Gestantes',
+                    old: oldestData.total_gestantes_ativas,
+                    new: newestData.total_gestantes_ativas,
+                    format: 'number'
+                },
+                {
+                    name: 'Ácido Fólico',
+                    old: oldestData.perc_acido_folico,
+                    new: newestData.perc_acido_folico,
+                    format: 'percent'
+                },
+                {
+                    name: 'Carbonato de Cálcio',
+                    old: oldestData.perc_carbonato_calcio,
+                    new: newestData.perc_carbonato_calcio,
+                    format: 'percent'
+                },
+                {
+                    name: 'Hipertensão',
+                    old: oldestData.perc_hipertensao,
+                    new: newestData.perc_hipertensao,
+                    format: 'percent'
+                },
+                {
+                    name: 'Diabetes',
+                    old: oldestData.perc_diabetes,
+                    new: newestData.perc_diabetes,
+                    format: 'percent'
+                },
+                {
+                    name: 'Hipertensas Medicadas',
+                    old: oldestData.perc_hipertensas_medicadas,
+                    new: newestData.perc_hipertensas_medicadas,
+                    format: 'percent'
+                },
+                {
+                    name: 'Diabéticas Medicadas',
+                    old: oldestData.perc_diabeticas_medicadas,
+                    new: newestData.perc_diabeticas_medicadas,
+                    format: 'percent'
+                }
+            ];
+
+            tbody.innerHTML = rows.map(row => {
+                const variation = calculateVariation(row.old, row.new);
+                const oldValue = row.format === 'percent' ? `${row.old.toFixed(1)}%` : row.old.toLocaleString('pt-BR');
+                const newValue = row.format === 'percent' ? `${row.new.toFixed(1)}%` : row.new.toLocaleString('pt-BR');
+                const arrow = variation.trend === 'up' ? '↑' : variation.trend === 'down' ? '↓' : '→';
+
+                return `
+                    <tr>
+                        <td><strong>${row.name}</strong></td>
+                        <td>${oldValue}<br><small style="color: var(--neutral-500);">${formatDate(oldestDate)}</small></td>
+                        <td>${newValue}<br><small style="color: var(--neutral-500);">${formatDate(newestDate)}</small></td>
+                        <td class="trend-${variation.trend}">${variation.value}</td>
+                        <td style="font-size: 1.5rem; text-align: center;" class="trend-${variation.trend}">${arrow}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // Modal Functions
+        function closeModal() {
+            document.getElementById('bq-modal').classList.remove('active');
+        }
+
+        function copyCommand() {
+            const command = `bq query --format=json --use_legacy_sql=false -q "$(cat query_dashboard_completo.sql)" > dashboard_data_completo.json`;
+            navigator.clipboard.writeText(command).then(() => {
+                alert('Comando copiado para área de transferência!');
+            });
+        }
+
+        // Console helper
+        console.log('%c📊 Dashboard Pré-Natal v2.0', 'font-size: 16px; font-weight: bold; color: #0369A1;');
+        console.log('%c\n📁 Carregamento de Dados:', 'font-size: 14px; font-weight: bold; color: #57534E;');
+        console.log('%c1. Arquivo JSON completo: dashboard_data_completo.json', 'font-size: 12px; color: #78716C;');
+        console.log('%c   - Contém TODAS as datas com TODOS os indicadores', 'font-size: 11px; color: #A8A29E;');
+        console.log('%c2. Dados embarcados (3 datas de exemplo para demonstração)', 'font-size: 12px; color: #78716C;');
+        console.log('%c\n🔄 Para atualizar:', 'font-size: 14px; font-weight: bold; color: #059669;');
+        console.log('%c1. Clique em "Atualizar Dados" no dashboard', 'font-size: 12px; color: #78716C;');
+        console.log('%c2. Copie e execute o comando no terminal', 'font-size: 12px; color: #78716C;');
+        console.log('%c3. Recarregue a página', 'font-size: 12px; color: #78716C;');
+        console.log('%c\n💡 O arquivo query_dashboard_completo.sql contém a query completa', 'font-size: 12px; color: #D97706;');
+    </script>
+</body>
+</html>

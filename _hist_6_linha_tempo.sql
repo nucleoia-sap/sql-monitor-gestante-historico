@@ -1,22 +1,10 @@
--- Sintaxe para criar ou substituir uma consulta salva (procedimento)
--- VERSÃO PARAMETRIZADA PARA CONSTRUÇÃO DE HISTÓRICO
--- Parâmetro data_referencia: permite gerar snapshot da linha do tempo em uma data específica
-CREATE OR REPLACE PROCEDURE `rj-sms-sandbox.sub_pav_us.proced_6_linha_tempo_historico`(data_referencia DATE)
 
-BEGIN
+-- CREATE OR REPLACE TABLE `rj-sms-sandbox.sub_pav_us._linha_tempo_historico` AS
 
-  -- A consulta que você quer salvar e reutilizar
-  -- Usa data_referencia no lugar de CURRENT_DATE() para permitir análise histórica
+DECLARE data_referencia DATE DEFAULT DATE('2024-08-01');
 
 
--- {{
---     config(
---         enabled=true,
---         alias="linha_tempo_historico",
---     )
--- }}
-
-CREATE OR REPLACE TABLE `rj-sms-sandbox.sub_pav_us._linha_tempo_historico` AS
+INSERT INTO `rj-sms-sandbox.sub_pav_us._linha_tempo_historico`
 
 WITH
 
@@ -1518,5 +1506,3 @@ SELECT
     *
 FROM final
 WHERE fase_atual IN ('Gestação', 'Puerpério');
-
-END;
