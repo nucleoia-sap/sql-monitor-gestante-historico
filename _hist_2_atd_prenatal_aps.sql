@@ -1,4 +1,4 @@
-DECLARE data_referencia DATE DEFAULT DATE('2024-07-01');
+-- DECLARE data_referencia DATE DEFAULT DATE('2024-07-01');
 
 
 -- CREATE OR REPLACE TABLE `rj-sms-sandbox.sub_pav_us._atendimentos_prenatal_aps_historico` AS
@@ -140,15 +140,15 @@ atendimentos_filtrados AS (
    ea.estabelecimento.estabelecimento_tipo,
    ea.profissional_saude_responsavel.nome AS profissional_nome,
    ea.profissional_saude_responsavel.especialidade AS profissional_categoria,
-   ea.medidas.altura,
-   ea.medidas.peso,
-   ea.medidas.imc,
-   ea.medidas.pressao_sistolica,
-   ea.medidas.pressao_diastolica,
-   ea.motivo_atendimento,
-   ea.desfecho_atendimento,
-   c.id AS cid,
-   -- STRING_AGG(DISTINCT c.id, '; ' ORDER BY c.id) AS cid_string
+  ANY_VALUE(ea.medidas.altura) AS altura,
+  ANY_VALUE(ea.medidas.peso) AS peso,
+  ANY_VALUE(ea.medidas.imc) AS imc,
+  ANY_VALUE(ea.medidas.pressao_sistolica) AS pressao_sistolica,
+  ANY_VALUE(ea.medidas.pressao_diastolica) AS pressao_diastolica,
+  ANY_VALUE(ea.motivo_atendimento) AS motivo_atendimento,
+  ANY_VALUE(ea.desfecho_atendimento) AS desfecho_atendimento,
+  --  c.id AS cid,
+   STRING_AGG(c.id, ', ' ORDER BY c.id) AS cid_string
 --  FROM {{ ref('mart_historico_clinico__episodio') }} ea,
  FROM `rj-sms.saude_historico_clinico.episodio_assistencial` ea
  --Ajuste UNNEST (foi retirado a vírgula ao fim da linha acima)
@@ -169,8 +169,10 @@ atendimentos_filtrados AS (
      'Enfermeiro',
      'Enfermeiro Obstetrico - Nasf',
      'Médico Generalista',
-     'Médico de Família e Comunidade'
+     'Médico de Família e Comunidade',
+     'Farmacêutico Hospitalar e Clinico - NASF'
    )
+   GROUP BY 1,2,3,4,5,6,7
 ),
 
 
@@ -262,7 +264,7 @@ SELECT
 
 
  motivo_atendimento AS descricao_s,
- cid,
+ cid_string,
  desfecho_atendimento AS desfecho,
  prescricoes,
 

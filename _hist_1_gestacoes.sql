@@ -17,9 +17,11 @@
 -- -- }}
 
 -- CREATE OR REPLACE TABLE `rj-sms-sandbox.sub_pav_us._gestacoes_historico` AS
-DECLARE data_referencia DATE DEFAULT DATE('2024-07-01');
+-- DECLARE data_referencia DATE DEFAULT DATE('2024-01-01');
 
 -- CREATE OR REPLACE TABLE `rj-sms-sandbox.sub_pav_us._gestacoes_historico` AS
+-- DELETE FROM `rj-sms-sandbox.sub_pav_us._gestacoes_historico` WHERE data_snapshot = data_referencia;
+
 INSERT INTO `rj-sms-sandbox.sub_pav_us._gestacoes_historico` 
 
 WITH
@@ -75,7 +77,7 @@ WITH
         WHERE
             c.data_diagnostico IS NOT NULL
             AND c.data_diagnostico != ''
-            AND c.situacao = 'ATIVO'  -- ✅ CORREÇÃO: Apenas ATIVO para inícios
+            AND c.situacao IN ('ATIVO','RESOLVIDO') 
             AND (
                 c.id = 'Z321'
                 OR c.id LIKE 'Z34%'
@@ -90,11 +92,28 @@ WITH
     -- ------------------------------------------------------------
     -- Inícios de Gestação (apenas CIDs ATIVOS)
     -- ------------------------------------------------------------
+    -- inicios_brutos AS (
+    --     SELECT *
+    --     FROM eventos_brutos
+    --     WHERE tipo_evento = 'gestacao'
+    -- ),
+
+
     inicios_brutos AS (
         SELECT *
         FROM eventos_brutos
-        WHERE tipo_evento = 'gestacao'
+        WHERE
+            tipo_evento = 'gestacao'
+            AND situacao_cid = 'ATIVO'
     ),
+    finais AS (
+        SELECT *
+        FROM eventos_brutos
+        WHERE
+            tipo_evento = 'gestacao'
+            AND situacao_cid = 'RESOLVIDO'
+    ),
+
 
     -- ------------------------------------------------------------
     -- Inícios de Gestação com Grupo (janela de 60 dias)
@@ -249,6 +268,7 @@ WITH
             AND pd.id_paciente = id.id_paciente
             AND pd.data_inicio = id.data_evento
     ),
+
 
     -- ------------------------------------------------------------
     -- Gestações com Status
@@ -405,8 +425,5 @@ SELECT
     edf.clinica_nome
 FROM filtrado
     LEFT JOIN equipe_durante_final edf ON filtrado.id_gestacao = edf.id_gestacao;
-
-
-
 
 -- END;
