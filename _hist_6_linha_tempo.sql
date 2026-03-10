@@ -1,7 +1,10 @@
 
 -- CREATE OR REPLACE TABLE `rj-sms-sandbox.sub_pav_us._linha_tempo_historico` AS
 
--- DECLARE data_referencia DATE DEFAULT DATE('2024-08-01');
+DECLARE data_referencia DATE DEFAULT DATE('2024-01-01');
+
+DELETE FROM `rj-sms-sandbox.sub_pav_us._linha_tempo_historico` 
+WHERE data_snapshot = data_referencia;
 
 
 INSERT INTO `rj-sms-sandbox.sub_pav_us._linha_tempo_historico`
@@ -154,8 +157,9 @@ cad_e_atd AS (
       COUNT(*) AS total_atendimentos,
       MAX(apa.data_consulta) AS ultima_data_atendimento
     FROM linha_tempo_base lt
-    JOIN `rj-sms-sandbox.sub_pav_us._atendimentos_prenatal_aps` apa
+    JOIN `rj-sms-sandbox.sub_pav_us._atendimentos_prenatal_aps_historico` apa
       ON lt.id_gestacao = apa.id_gestacao
+      AND apa.data_snapshot = data_referencia
     GROUP BY lt.id_paciente, unidade_norm
   ),
   unidade_atendimento_prioritaria AS (
@@ -1198,8 +1202,9 @@ obesidade_gestante AS (
       END
     ) AS tem_obesidade
   FROM filtrado f
-  LEFT JOIN `rj-sms-sandbox.sub_pav_us._atendimentos_prenatal_aps` fapn
+  LEFT JOIN `rj-sms-sandbox.sub_pav_us._atendimentos_prenatal_aps_historico` fapn
     ON f.id_gestacao = fapn.id_gestacao
+    AND fapn.data_snapshot = data_referencia
   GROUP BY f.id_gestacao  -- Apenas id_gestacao para garantir 1 linha por gestação
 ),
 

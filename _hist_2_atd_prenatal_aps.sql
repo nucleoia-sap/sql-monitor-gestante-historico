@@ -1,5 +1,7 @@
--- DECLARE data_referencia DATE DEFAULT DATE('2024-07-01');
+DECLARE data_referencia DATE DEFAULT DATE('2024-01-01');
 
+DELETE FROM `rj-sms-sandbox.sub_pav_us._atendimentos_prenatal_aps_historico` 
+WHERE data_snapshot = data_referencia;
 
 -- CREATE OR REPLACE TABLE `rj-sms-sandbox.sub_pav_us._atendimentos_prenatal_aps_historico` AS
 INSERT INTO `rj-sms-sandbox.sub_pav_us._atendimentos_prenatal_aps_historico`
@@ -118,12 +120,21 @@ peso_altura_inicio AS (
    p.id_paciente,
    p.peso,
    a.altura_cm / 100 AS altura_m,
-   ROUND(p.peso / POW(a.altura_cm / 100, 2), 1) AS imc_inicio,
+   -- PROTEÇÃO: Evita divisão por zero (altura deve ser > 0)
    CASE
-     WHEN ROUND(p.peso / POW(a.altura_cm / 100, 2), 1) < 18 THEN 'Baixo peso'
-     WHEN ROUND(p.peso / POW(a.altura_cm / 100, 2), 1) < 25 THEN 'Eutrófico'
-     WHEN ROUND(p.peso / POW(a.altura_cm / 100, 2), 1) < 30 THEN 'Sobrepeso'
-     ELSE 'Obesidade'
+     WHEN a.altura_cm > 0 AND p.peso IS NOT NULL
+     THEN ROUND(p.peso / POW(a.altura_cm / 100, 2), 1)
+     ELSE NULL
+   END AS imc_inicio,
+   CASE
+     WHEN a.altura_cm > 0 AND p.peso IS NOT NULL THEN
+       CASE
+         WHEN ROUND(p.peso / POW(a.altura_cm / 100, 2), 1) < 18 THEN 'Baixo peso'
+         WHEN ROUND(p.peso / POW(a.altura_cm / 100, 2), 1) < 25 THEN 'Eutrófico'
+         WHEN ROUND(p.peso / POW(a.altura_cm / 100, 2), 1) < 30 THEN 'Sobrepeso'
+         ELSE 'Obesidade'
+       END
+     ELSE NULL
    END AS classificacao_imc_inicio
  FROM peso_proximo_inicio p
  JOIN altura_moda_completa a ON p.id_gestacao = a.id_gestacao
@@ -155,7 +166,7 @@ atendimentos_filtrados AS (
   left join UNNEST(ea.condicoes) AS c
  WHERE ea.subtipo = 'Atendimento SOAP'
    AND LOWER(ea.prontuario.fornecedor) = 'vitacare'
-   AND c.situacao = 'ATIVO'
+  --  AND c.situacao = 'ATIVO'
   --  AND (c.id = 'Z321' OR c.id LIKE 'Z34%' OR c.id LIKE 'Z35%')
    AND ea.profissional_saude_responsavel.especialidade IN (
      'Médico da estratégia de saúde da família',
@@ -176,8 +187,12 @@ atendimentos_filtrados AS (
 ),
 
 
--- Join com gestação
-atendimentos_gestacao AS (
+-- Join com gestação (COM DEDUPLICAÇÃO)
+-- ============================================================
+-- CORREÇÃO: Evita duplicação de consultas em múltiplas gestações
+-- Cada consulta é vinculada apenas à gestação MAIS RECENTE que a precede
+-- ============================================================
+atendimentos_gestacao_candidatos AS (
  SELECT
    af.*,
    mt.id_gestacao,
@@ -189,11 +204,45 @@ atendimentos_gestacao AS (
      WHEN DATE_DIFF(af.entrada_data, mt.data_inicio, WEEK) <= 13 THEN 1
      WHEN DATE_DIFF(af.entrada_data, mt.data_inicio, WEEK) <= 27 THEN 2
      ELSE 3
-   END AS trimestre_consulta
+   END AS trimestre_consulta,
+   -- Ranquear gestações: a mais recente antes da consulta tem prioridade
+   ROW_NUMBER() OVER (
+     PARTITION BY af.id_hci
+     ORDER BY mt.data_inicio DESC  -- Gestação mais recente primeiro
+   ) AS rn_gestacao
  FROM atendimentos_filtrados af
  JOIN marcadores_temporais mt
    ON af.id_paciente = mt.id_paciente
-  AND af.entrada_data BETWEEN mt.data_inicio AND COALESCE(mt.data_fim_efetiva, data_referencia)  -- ALTERADO: era CURRENT_DATE()
+  AND af.entrada_data >= mt.data_inicio  -- Consulta deve ser APÓS início da gestação
+  AND af.entrada_data <= COALESCE(mt.data_fim_efetiva, data_referencia)  -- E ANTES do fim
+),
+
+-- Selecionar apenas a gestação mais apropriada para cada consulta
+atendimentos_gestacao AS (
+ SELECT
+   id_hci,
+   id_paciente,
+   entrada_data,
+   estabelecimento,
+   estabelecimento_tipo,
+   profissional_nome,
+   profissional_categoria,
+   altura,
+   peso,
+   imc,
+   pressao_sistolica,
+   pressao_diastolica,
+   motivo_atendimento,
+   desfecho_atendimento,
+   cid_string,
+   id_gestacao,
+   data_inicio,
+   data_fim_efetiva,
+   fase_atual,
+   ig_consulta,
+   trimestre_consulta
+ FROM atendimentos_gestacao_candidatos
+ WHERE rn_gestacao = 1  -- Apenas a gestação mais recente
 ),
 
 
@@ -226,7 +275,12 @@ consultas_enriquecidas AS (
 
 
    ag.peso - pai.peso AS ganho_peso_acumulado,
-   ROUND(ag.peso / POW(pai.altura_m, 2), 1) AS imc_consulta
+   -- PROTEÇÃO: Evita divisão por zero (altura_m deve ser > 0)
+   CASE
+     WHEN pai.altura_m > 0 AND ag.peso IS NOT NULL
+     THEN ROUND(ag.peso / POW(pai.altura_m, 2), 1)
+     ELSE NULL
+   END AS imc_consulta
 
 
  FROM atendimentos_gestacao ag
@@ -264,14 +318,17 @@ SELECT
 
 
  motivo_atendimento AS descricao_s,
- cid_string,
+ cid_string AS cid,
  desfecho_atendimento AS desfecho,
  prescricoes,
 
 
  estabelecimento,
  profissional_nome,
- profissional_categoria
+ profissional_categoria,
+
+
+ id_hci  -- NOVO: identificador do histórico clínico (última coluna)
 
 
 FROM consultas_enriquecidas
